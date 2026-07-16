@@ -5,6 +5,7 @@ from app.database import get_db
 from app.ml_core import make_match_key
 from app.models_db import Movie
 from app.tmdb_async_client import sync_catalogue
+from app.tmdb_client import enrich_movie
 
 router = APIRouter(prefix="/catalogue", tags=["catalogue"])
 
@@ -73,3 +74,40 @@ async def sync_catalogue_endpoint(
     summary = _upsert_movies(db, raw_movies)
 
     return {"movies_fetched": len(raw_movies), **summary}
+
+
+@router.post("/enrich")
+def enrich_catalogue(limit: int = 20, db: Session = Depends(get_db)) -> dict:
+    """Complète les films du catalogue dont le poster ou le résumé manque, via TMDB."""
+    incomplete_movies = (
+        db.query(Movie)
+        .filter((Movie.poster_path.is_(None)) | (Movie.overview == ""))
+        .limit(limit)
+        .all()
+    )
+
+    checked = 0
+    enriched = 0
+    errors = 0
+
+    for movie in incomplete_movies:
+        checked += 1
+        try:
+            found = enrich_movie(movie.title, movie.year)
+        except Exception:
+            errors += 1
+            continue
+
+        if found is None:
+            continue
+
+        if found.get("poster_path"):
+            movie.poster_path = found["poster_path"]
+        if found.get("overview"):
+            movie.overview = found["overview"]
+
+        enriched += 1
+
+    db.commit()
+
+    return {"checked": checked, "enriched": enriched, "errors": errors}
