@@ -37,7 +37,7 @@ def _sample_ratings_df() -> pd.DataFrame:
             "Name": ["Scarface", "GoodFellas"],
             "Year": [1983, 1990],
             "Letterboxd URI": ["https://boxd.it/2b7g", "https://boxd.it/29FA"],
-            "Rating": [5, 3],
+            "Rating": [5.0, 3.0],
         }
     )
 
