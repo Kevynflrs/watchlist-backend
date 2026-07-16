@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.config import TMDB_IMAGE_BASE
-from app.database import engine, get_db
+from app.database import get_db
 from app.models_db import WatchedMovie
 from app.routers.train import get_cached_model_bundle
 from app.schemas import MovieOut
@@ -23,7 +23,7 @@ def recommend(
             status_code=409, detail="Aucun modèle entraîné. Appelle POST /train/ d'abord."
         )
 
-    catalogue_df = pd.read_sql("SELECT * FROM movies", con=engine)
+    catalogue_df = pd.read_sql("SELECT * FROM movies", con=db.get_bind())
     watched_match_keys = {row.match_key for row in db.query(WatchedMovie.match_key).all()}
 
     scored_df = score_catalogue(catalogue_df, watched_match_keys, model_bundle)

@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.config import MODEL_PATH
-from app.database import engine, get_db
+from app.database import get_db
 from app.schemas import TrainResult
 from app.train import RATING_THRESHOLD, ModelBundle, train_model
 
@@ -28,8 +28,8 @@ def train(db: Session = Depends(get_db)) -> TrainResult:
     """Entraîne le modèle à partir du catalogue et des films notés en DB, puis le sauvegarde."""
     global _model_bundle_cache
 
-    catalogue_df = pd.read_sql("SELECT * FROM movies", con=engine)
-    watched_df = pd.read_sql("SELECT * FROM watched_movies", con=engine)
+    catalogue_df = pd.read_sql("SELECT * FROM movies", con=db.get_bind())
+    watched_df = pd.read_sql("SELECT * FROM watched_movies", con=db.get_bind())
 
     model_bundle = train_model(catalogue_df, watched_df)
     model_bundle.save(MODEL_PATH)
