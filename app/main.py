@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
 from app.database import Base, engine
-from app.routers import catalogue, train, watched
+from app.routers import catalogue, recommend, train, watched
 
 # Crée toutes les tables connues de Base si elles n'existent pas encore.
 Base.metadata.create_all(bind=engine)
@@ -11,6 +11,7 @@ app = FastAPI(title="Watchlist Backend", version="0.1.1")
 app.include_router(watched.router)
 app.include_router(catalogue.router)
 app.include_router(train.router)
+app.include_router(recommend.router)
 
 
 @app.get("/health")
