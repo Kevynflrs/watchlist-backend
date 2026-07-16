@@ -221,3 +221,4 @@ __marimo__/
 # Database files
 *.sqlite
 *.db
+models/model_bundle.joblib
