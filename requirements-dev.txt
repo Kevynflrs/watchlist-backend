@@ -1,5 +1,7 @@
 pytest
 pytest-cov
+pytest-asyncio
+respx
 black
 ruff
 pre-commit
