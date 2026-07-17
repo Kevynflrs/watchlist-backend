@@ -162,8 +162,8 @@ pytest · Docker · GitHub Actions
 
 ## Repos liés
 
-- [watchlist-frontend](https://github.com/<ton-user>/watchlist-frontend) --> interface Streamlit
-- [watchlist](https://github.com/<ton-user>/watchlist) --> méta-repo (architecture globale, docker-compose, notebook Colab)
+- [watchlist-frontend](https://github.com/Kevynflrs/watchlist-frontend) : interface Streamlit
+- [watchlist](https://github.com/Kevynflrs/watchlist) : méta-repo (architecture globale, docker-compose, notebook Colab)
 
 ## Convention de commits
 
