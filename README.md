@@ -97,7 +97,7 @@ votes / année / durée / revenu (scalés via `MinMaxScaler`) --> `RandomForestC
 ### Avec Docker (recommandé)
 
 ```bash
-git clone https://github.com/<ton-user>/watchlist-backend.git
+git clone https://github.com/Kevynflrs/watchlist-backend.git
 cd watchlist-backend
 cp .env.example .env # renseigner TMDB_API_KEY / TMDB_BEARER_TOKEN
 docker compose up --build
@@ -109,7 +109,7 @@ sur `http://localhost:8000/docs`.
 ### En local (sans Docker)
 
 ```bash
-git clone https://github.com/<ton-user>/watchlist-backend.git
+git clone https://github.com/Kevynflrs/watchlist-backend.git
 cd watchlist-backend
 python -m venv .venv
 source .venv\Scripts\Activate.ps1 # ou .venv/bin/activate sous Linux
