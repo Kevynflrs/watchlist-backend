@@ -95,6 +95,22 @@ async def sync_catalogue_endpoint(
     return {"movies_fetched": len(raw_movies), **summary}
 
 
+@router.get("/stats")
+def catalogue_stats(db: Session = Depends(get_db)) -> dict:
+    """Retourne des statistiques simples sur le catalogue actuellement en DB."""
+    total = db.query(Movie).count()
+    missing_poster = db.query(Movie).filter(Movie.poster_path.is_(None)).count()
+    missing_overview = (
+        db.query(Movie).filter((Movie.overview.is_(None)) | (Movie.overview == "")).count()
+    )
+
+    return {
+        "total_movies": total,
+        "missing_poster": missing_poster,
+        "missing_overview": missing_overview,
+    }
+
+
 @router.post("/import")
 def import_catalogue_csv(file: UploadFile, db: Session = Depends(get_db)) -> dict:
     """Importe/actualise le catalogue depuis un export CSV TMDB local."""
