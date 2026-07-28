@@ -113,14 +113,25 @@ async def sync_catalogue_endpoint(
     sort_by: str = "popularity.desc",
     db: Session = Depends(get_db),
 ) -> dict:
-    """Synchronise le catalogue local depuis TMDB (discover paginé + détails par film)."""
-    raw_movies = await sync_catalogue(
-        max_pages=max_pages, min_vote_count=min_vote_count, sort_by=sort_by
+    """Synchronise le catalogue local depuis TMDB (discover paginé + détails des films nouveaux)."""
+    existing_match_keys = {row.match_key for row in db.query(Movie.match_key).all()}
+
+    result = await sync_catalogue(
+        max_pages=max_pages,
+        min_vote_count=min_vote_count,
+        sort_by=sort_by,
+        existing_match_keys=existing_match_keys,
     )
+    raw_movies = result["movies"]
+
     normalized_movies = [_normalize_tmdb_api_movie(raw) for raw in raw_movies]
     summary = _upsert_movies(db, normalized_movies)
 
-    return {"movies_fetched": len(raw_movies), **summary}
+    return {
+        "movies_fetched": len(raw_movies),
+        "skipped_existing": result["skipped_existing"],
+        **summary,
+    }
 
 
 @router.get("/stats")
