@@ -138,3 +138,94 @@ def test_upsert_movies_skips_duplicate_match_key_within_same_batch(db_session):
     assert summary["inserted"] == 1
     assert summary["skipped_duplicates"] == 1
     assert db_session.query(Movie).count() == 1
+
+
+def test_upsert_movies_fill_missing_only_does_not_overwrite_existing_values(db_session):
+    initial = [
+        {
+            "title": "Dune",
+            "year": 2021,
+            "genres": ["Sci-Fi"],
+            "overview": "Version originale correcte.",
+            "poster_path": "/dune.jpg",
+            "average_rating": 8.0,
+            "num_votes": 10000,
+            "runtime": 155,
+            "revenue": 400_000_000,
+            "budget": 165_000_000,
+            "popularity": 90.0,
+            "status": "Released",
+        }
+    ]
+    _upsert_movies(db_session, initial)
+
+    # Un import CSV avec des valeurs différentes (potentiellement périmées) sur des champs déjà remplis,
+    # mais qui apporte un champ resté vide (ici : aucun manquant volontairement pour ce test).
+    stale_csv = [
+        {
+            "title": "Dune",
+            "year": 2021,
+            "genres": ["Adventure"],  # différent, mais existant déjà rempli -> ignoré
+            "overview": "Résumé différent et probablement périmé.",
+            "poster_path": "/other.jpg",
+            "average_rating": 5.0,
+            "num_votes": 1,
+            "runtime": 100,
+            "revenue": 0,
+            "budget": 0,
+            "popularity": 1.0,
+            "status": "Released",
+        }
+    ]
+
+    summary = _upsert_movies(db_session, stale_csv, fill_missing_only=True)
+
+    assert summary["unchanged"] == 1
+    stored = db_session.query(Movie).filter_by(match_key="dune_2021").first()
+    assert stored.overview == "Version originale correcte."
+    assert stored.average_rating == 8.0
+
+
+def test_upsert_movies_fill_missing_only_fills_empty_fields(db_session):
+    incomplete = [
+        {
+            "title": "Dune",
+            "year": 2021,
+            "genres": [],
+            "overview": None,
+            "poster_path": None,
+            "average_rating": 8.0,
+            "num_votes": 10000,
+            "runtime": 155,
+            "revenue": 400_000_000,
+            "budget": 165_000_000,
+            "popularity": 90.0,
+            "status": "Released",
+        }
+    ]
+    _upsert_movies(db_session, incomplete)
+
+    completing_csv = [
+        {
+            "title": "Dune",
+            "year": 2021,
+            "genres": ["Sci-Fi", "Adventure"],
+            "overview": "Un résumé qui vient enfin compléter le film.",
+            "poster_path": "/dune.jpg",
+            "average_rating": 5.0,  # déjà rempli -> ne doit pas changer
+            "num_votes": 1,
+            "runtime": 100,
+            "revenue": 0,
+            "budget": 0,
+            "popularity": 1.0,
+            "status": "Released",
+        }
+    ]
+
+    summary = _upsert_movies(db_session, completing_csv, fill_missing_only=True)
+
+    assert summary["updated"] == 1
+    stored = db_session.query(Movie).filter_by(match_key="dune_2021").first()
+    assert stored.overview == "Un résumé qui vient enfin compléter le film."
+    assert stored.poster_path == "/dune.jpg"
+    assert stored.average_rating == 8.0  # inchangé, malgré la nouvelle valeur du CSV

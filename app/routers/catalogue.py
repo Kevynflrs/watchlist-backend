@@ -33,8 +33,20 @@ def _normalize_tmdb_api_movie(raw: dict) -> dict:
     }
 
 
-def _upsert_movies(db: Session, movies: list[dict]) -> dict[str, int]:
-    """Insère ou met à jour chaque film normalisé en DB, par match_key."""
+def _is_empty(value) -> bool:
+    """Considère None, chaîne vide, et 'liste vide sérialisée' comme des valeurs manquantes."""
+    return value is None or value == "" or value == "[]"
+
+
+def _upsert_movies(
+    db: Session, movies: list[dict], fill_missing_only: bool = False
+) -> dict[str, int]:
+    """Insère ou met à jour chaque film normalisé en DB, par match_key.
+
+    Si fill_missing_only=True, ne modifie que les champs actuellement vides en DB
+    (ne remplace jamais une valeur déjà présente) — utile pour un import CSV qui
+    ne doit pas dégrader des données déjà à jour via /catalogue/sync.
+    """
     inserted = 0
     updated = 0
     unchanged = 0
@@ -59,6 +71,22 @@ def _upsert_movies(db: Session, movies: list[dict]) -> dict[str, int]:
             db.add(Movie(match_key=match_key, **new_values))
             inserted += 1
             continue
+
+        if fill_missing_only:
+            # Ne retient que les champs où l'existant est vide ET la nouvelle valeur ne l'est pas.
+            fields_to_fill = {
+                field: value
+                for field, value in new_values.items()
+                if _is_empty(getattr(existing, field)) and not _is_empty(value)
+            }
+            if fields_to_fill:
+                for field, value in fields_to_fill.items():
+                    setattr(existing, field, value)
+                updated += 1
+            else:
+                unchanged += 1
+            continue
+
         has_changed = any(getattr(existing, field) != value for field, value in new_values.items())
 
         if has_changed:
@@ -112,10 +140,17 @@ def catalogue_stats(db: Session = Depends(get_db)) -> dict:
 
 
 @router.post("/import")
-def import_catalogue_csv(file: UploadFile, db: Session = Depends(get_db)) -> dict:
-    """Importe/actualise le catalogue depuis un export CSV TMDB local."""
+def import_catalogue_csv(
+    file: UploadFile, fill_missing_only: bool = True, db: Session = Depends(get_db)
+) -> dict:
+    """Importe/actualise le catalogue depuis un export CSV TMDB local.
+
+    Par défaut (fill_missing_only=True), ne comble que les champs vides en DB,
+    sans jamais écraser une donnée déjà présente (ex: via /catalogue/sync).
+    Passe fill_missing_only=false pour un comportement d'écrasement complet.
+    """
     movies = parse_tmdb_csv(file.file)
-    summary = _upsert_movies(db, movies)
+    summary = _upsert_movies(db, movies, fill_missing_only=fill_missing_only)
 
     return {"movies_read": len(movies), **summary}
 
