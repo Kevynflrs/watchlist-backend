@@ -4,6 +4,7 @@ from typing import Any
 import httpx
 
 from app.config import TMDB_API_BASE
+from app.ml_core import make_match_key
 from app.tmdb_client import _get_auth_params_and_headers
 
 MAX_CONCURRENT_REQUESTS = (
@@ -49,9 +50,18 @@ async def get_movie_details(client: httpx.AsyncClient, movie_id: int) -> dict[st
 
 
 async def sync_catalogue(
-    max_pages: int = 5, min_vote_count: int = 100, sort_by: str = "popularity.desc"
-) -> list[dict[str, Any]]:
-    """Orchestre le sync complet : discover toutes les pages, puis détails de chaque film unique."""
+    max_pages: int = 5,
+    min_vote_count: int = 100,
+    sort_by: str = "popularity.desc",
+    existing_match_keys: set[str] | None = None,
+) -> dict[str, Any]:
+    """Orchestre le sync complet : discover toutes les pages, puis détails des films nouveaux.
+
+    Si existing_match_keys est fourni, les films dont le match_key (calculé depuis
+    title/release_date du discover, avant tout appel de détail) correspond déjà à
+    un film connu sont exclus des appels /movie/{id} — économise le quota TMDB.
+    """
+    existing_match_keys = existing_match_keys or set()
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
 
     async def _bounded_discover(client: httpx.AsyncClient, page: int) -> list[dict[str, Any]]:
@@ -69,10 +79,24 @@ async def sync_catalogue(
 
         # Aplatit les pages en une seule liste, puis déduplique par id (un film peut théoriquement apparaître sur plusieurs pages si le tri change entre deux appels).
         all_movies = [movie for page_results in pages_results for movie in page_results]
-        unique_ids = {movie["id"] for movie in all_movies}
+        unique_by_id = {movie["id"]: movie for movie in all_movies}
 
-        # détails de chaque film unique, en parallèle.
-        detail_tasks = [_bounded_details(client, movie_id) for movie_id in unique_ids]
+        # Filtre AVANT l'appel de détail : calcule le match_key depuis les champs déjà présents dans la réponse discover (title, release_date),
+        # sans requête supplémentaire, et exclut tout film déjà connu en DB.
+        new_movies = []
+        skipped_existing = 0
+        for movie in unique_by_id.values():
+            release_date = movie.get("release_date") or ""
+            year = int(release_date[:4]) if release_date[:4].isdigit() else None
+            match_key = make_match_key(movie.get("title", ""), year)
+
+            if match_key in existing_match_keys:
+                skipped_existing += 1
+                continue
+            new_movies.append(movie)
+
+        # détails de chaque film NOUVEAU uniquement, en parallèle.
+        detail_tasks = [_bounded_details(client, movie["id"]) for movie in new_movies]
         detailed_movies = await asyncio.gather(*detail_tasks)
 
-    return list(detailed_movies)
+    return {"movies": list(detailed_movies), "skipped_existing": skipped_existing}

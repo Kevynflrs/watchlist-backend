@@ -51,10 +51,11 @@ watchlist-backend/
 │   ├── scoring.py # scoring du catalogue, catégorisation
 │   ├── imports.py # upsert des imports Letterboxd
 │   ├── tmdb_client.py # client TMDB synchrone
-│   ├── tmdb_async_client.py # client TMDB asynchrone (sync catalogue)
+│   ├── tmdb_async_client.py # client TMDB asynchrone (sync catalogue, exclusion des connus)
+│   ├── tmdb_csv_import.py # parsing d'un export CSV TMDB (format pivot normalisé)
 │   └── routers/
 │       ├── watched.py # POST /watched/import/*, GET /watched/
-│       ├── catalogue.py # POST /catalogue/sync, /catalogue/enrich
+│       ├── catalogue.py # POST /catalogue/sync, /import, /enrich, /stats
 │       ├── train.py # POST /train/, GET /train/status
 │       ├── recommend.py # GET /recommend/
 │       └── categories.py # GET /recommend/categories
@@ -70,6 +71,8 @@ watchlist-backend/
 │   ├── test_tmdb_client.py
 │   ├── test_tmdb_async_client.py
 │   ├── test_tmdb_respx.py
+│   ├── test_tmdb_csv_import.py
+│   ├── test_tmdb_sync_exclusion.py
 │   └── test_e2e_scenario.py
 ├── scripts/ # scripts ponctuels (imports manuels, debug)
 ├── data/ # DB SQLite locale (généré, ignoré par git)
@@ -126,18 +129,25 @@ uvicorn app.main:app --reload
 | `POST` | `/watched/import/watched` | Importe un `watched.csv` Letterboxd (films vus) |
 | `POST` | `/watched/import/ratings` | Importe un `ratings.csv` Letterboxd (films notés) |
 | `GET` | `/watched/` | Liste les films vus en DB |
-| `POST` | `/catalogue/sync` | Construit/actualise le catalogue depuis TMDB |
+| `POST` | `/catalogue/sync` | Construit/actualise le catalogue depuis TMDB (exclut les films déjà connus) |
+| `POST` | `/catalogue/import` | Importe/complète le catalogue depuis un CSV TMDB local |
 | `POST` | `/catalogue/enrich` | Complète les films incomplets du catalogue |
+| `GET` | `/catalogue/stats` | Statistiques sur le catalogue (total, champs manquants) |
 | `POST` | `/train/` | Entraîne le modèle sur les données actuelles |
 | `GET` | `/train/status` | État et métriques du dernier modèle entraîné |
 | `GET` | `/recommend/` | Retourne les films recommandés, non-vus, triés par score |
 | `GET` | `/recommend/categories` | Liste les catégories de style disponibles |
 
-Exemple de requête :
+Exemples de requêtes :
 
 ```bash
 curl -X POST http://localhost:8000/watched/import/ratings \
   -F "file=@ratings.csv"
+```
+
+```bash
+curl -X POST "http://localhost:8000/catalogue/import?fill_missing_only=true" \
+  -F "file=@tmdb_movies.csv"
 ```
 
 Documentation interactive complète (Swagger UI) : `http://localhost:8000/docs`.
