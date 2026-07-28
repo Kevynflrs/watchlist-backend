@@ -57,7 +57,7 @@ async def test_sync_catalogue_returns_deduplicated_movies():
 
     result = await sync_catalogue(max_pages=2, min_vote_count=100)
 
-    result_ids = {movie["id"] for movie in result}
+    result_ids = {movie["id"] for movie in result["movies"]}
     assert result_ids == {1, 2, 3}
 
 
@@ -78,7 +78,7 @@ async def test_sync_catalogue_retries_on_429():
     result = await sync_catalogue(max_pages=1, min_vote_count=100)
 
     assert route.call_count == 2
-    assert len(result) == 1
+    assert len(result["movies"]) == 1
 
 
 @respx.mock

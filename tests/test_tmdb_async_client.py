@@ -64,6 +64,6 @@ async def test_sync_catalogue_deduplicates_movies_across_pages():
     with patch("httpx.AsyncClient.get", new=AsyncMock(side_effect=fake_get)):
         result = await sync_catalogue(max_pages=2, min_vote_count=100)
 
-    result_ids = {movie["id"] for movie in result}
+    result_ids = {movie["id"] for movie in result["movies"]}
     assert result_ids == {1, 2, 3}
-    assert len(result) == 3
+    assert len(result["movies"]) == 3
