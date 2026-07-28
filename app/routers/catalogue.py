@@ -38,9 +38,19 @@ def _upsert_movies(db: Session, movies: list[dict]) -> dict[str, int]:
     inserted = 0
     updated = 0
     unchanged = 0
+    skipped_duplicates = 0
+
+    # Suit les match_key déjà traités dans CE batch, pour détecter les doublons internes au fichier importé avant qu'ils ne soient tentés en DB sans avoir été flush.
+    seen_in_batch: set[str] = set()
 
     for movie in movies:
         match_key = make_match_key(movie["title"], movie["year"])
+
+        if match_key in seen_in_batch:
+            skipped_duplicates += 1
+            continue
+        seen_in_batch.add(match_key)
+
         new_values = {**movie, "genres": str(movie["genres"])}
 
         existing = db.query(Movie).filter_by(match_key=match_key).first()
@@ -49,7 +59,6 @@ def _upsert_movies(db: Session, movies: list[dict]) -> dict[str, int]:
             db.add(Movie(match_key=match_key, **new_values))
             inserted += 1
             continue
-
         has_changed = any(getattr(existing, field) != value for field, value in new_values.items())
 
         if has_changed:
@@ -61,7 +70,12 @@ def _upsert_movies(db: Session, movies: list[dict]) -> dict[str, int]:
 
     db.commit()
 
-    return {"inserted": inserted, "updated": updated, "unchanged": unchanged}
+    return {
+        "inserted": inserted,
+        "updated": updated,
+        "unchanged": unchanged,
+        "skipped_duplicates": skipped_duplicates,
+    }
 
 
 @router.post("/sync")

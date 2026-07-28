@@ -63,7 +63,12 @@ def test_upsert_movies_inserts_from_csv_pivot_format(db_session):
 
     summary = _upsert_movies(db_session, movies)
 
-    assert summary == {"inserted": 1, "updated": 0, "unchanged": 0}
+    assert summary == {
+        "inserted": 1,
+        "updated": 0,
+        "unchanged": 0,
+        "skipped_duplicates": 0,
+    }
     stored = db_session.query(Movie).filter_by(match_key="inception_2010").first()
     assert stored.title == "Inception"
     assert stored.genres == "['Action', 'Sci-Fi']"
@@ -93,4 +98,43 @@ def test_upsert_movies_shared_between_csv_and_api_sources(db_session):
     summary = _upsert_movies(db_session, [api_movie])
 
     assert summary["unchanged"] == 1
+    assert db_session.query(Movie).count() == 1
+
+
+def test_upsert_movies_skips_duplicate_match_key_within_same_batch(db_session):
+    movies = [
+        {
+            "title": "War of the Buttons",
+            "year": 2011,
+            "genres": ["Family"],
+            "overview": "Version française",
+            "poster_path": None,
+            "average_rating": 6.0,
+            "num_votes": 300,
+            "runtime": 100,
+            "revenue": 0,
+            "budget": 0,
+            "popularity": 5.0,
+            "status": "Released",
+        },
+        {
+            "title": "War of the Buttons",
+            "year": 2011,
+            "genres": ["Comedy"],
+            "overview": "Version anglaise",
+            "poster_path": None,
+            "average_rating": 5.0,
+            "num_votes": 100,
+            "runtime": 90,
+            "revenue": 0,
+            "budget": 0,
+            "popularity": 2.0,
+            "status": "Released",
+        },
+    ]
+
+    summary = _upsert_movies(db_session, movies)
+
+    assert summary["inserted"] == 1
+    assert summary["skipped_duplicates"] == 1
     assert db_session.query(Movie).count() == 1
