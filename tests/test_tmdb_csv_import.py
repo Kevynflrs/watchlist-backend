@@ -1,5 +1,3 @@
-"""Tests du parsing CSV TMDB et de l'upsert normalisé partagé."""
-
 import io
 
 import pytest

@@ -1,5 +1,3 @@
-"""Tests de l'exclusion des films déjà connus lors du sync (économie de quota TMDB)."""
-
 import pytest
 
 from app.tmdb_async_client import sync_catalogue
