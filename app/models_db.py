@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Float, Integer, String, func
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, func
 
 from app.database import Base
 
@@ -23,6 +23,16 @@ class Movie(Base):
     popularity = Column(Float, nullable=True)
     status = Column(String, nullable=True)  # ex: "Released", "Post Production"
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class EnrichmentQueue(Base):
+    """File d'attente des films incomplets à enrichir via TMDB, consommée par lots."""
+
+    __tablename__ = "enrichment_queue"
+
+    id = Column(Integer, primary_key=True, index=True)
+    movie_id = Column(Integer, ForeignKey("movies.id"), unique=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class WatchedMovie(Base):

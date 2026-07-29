@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.ml_core import make_match_key
-from app.models_db import Movie
+from app.models_db import EnrichmentQueue, Movie
 from app.tmdb_async_client import sync_catalogue
 from app.tmdb_client import enrich_movie
 from app.tmdb_csv_import import parse_tmdb_csv
@@ -166,38 +166,84 @@ def import_catalogue_csv(
     return {"movies_read": len(movies), **summary}
 
 
-@router.post("/enrich")
-def enrich_catalogue(limit: int = 20, db: Session = Depends(get_db)) -> dict:
-    """Complète les films du catalogue dont le poster ou le résumé manque, via TMDB."""
+@router.post("/enrich/queue/build")
+def build_enrichment_queue(db: Session = Depends(get_db)) -> dict:
+    """Ajoute à la file d'attente tous les films incomplets pas encore présents dedans."""
+    already_queued_ids = {row.movie_id for row in db.query(EnrichmentQueue.movie_id).all()}
+
     incomplete_movies = (
         db.query(Movie)
-        .filter((Movie.poster_path.is_(None)) | (Movie.overview == ""))
-        .limit(limit)
+        .filter((Movie.poster_path.is_(None)) | (Movie.overview.is_(None)) | (Movie.overview == ""))
         .all()
     )
+
+    added = 0
+    for movie in incomplete_movies:
+        if movie.id in already_queued_ids:
+            continue
+        db.add(EnrichmentQueue(movie_id=movie.id))
+        added += 1
+
+    db.commit()
+
+    return {"added_to_queue": added, "queue_size": db.query(EnrichmentQueue).count()}
+
+
+@router.get("/enrich/queue")
+def enrichment_queue_status(db: Session = Depends(get_db)) -> dict:
+    """Retourne le nombre de films actuellement en attente d'enrichissement."""
+    return {"queue_size": db.query(EnrichmentQueue).count()}
+
+
+@router.post("/enrich")
+def enrich_catalogue(limit: int = 20, db: Session = Depends(get_db)) -> dict:
+    """Complète les `limit` prochains films de la file d'attente, via TMDB, puis les en retire."""
+    queue_entries = db.query(EnrichmentQueue).order_by(EnrichmentQueue.id).limit(limit).all()
 
     checked = 0
     enriched = 0
     errors = 0
 
-    for movie in incomplete_movies:
+    for entry in queue_entries:
         checked += 1
+        movie = db.query(Movie).filter_by(id=entry.movie_id).first()
+
+        if movie is None:
+            # Le film a été supprimé du catalogue depuis sa mise en file -> on nettoie juste la file.
+            db.delete(entry)
+            continue
+
         try:
             found = enrich_movie(movie.title, movie.year)
         except Exception:
             errors += 1
+            # Échec technique : renvoyé en fin de file (nouvel id) plutôt que perdu, pour ne pas bloquer les films suivants tout en gardant une chance de retry.
+            db.delete(entry)
+            db.flush()
+            db.add(EnrichmentQueue(movie_id=entry.movie_id))
             continue
 
         if found is None:
+            # TMDB n'a rien trouvé cette fois -> même logique, renvoyé en fin de file.
+            db.delete(entry)
+            db.flush()
+            db.add(EnrichmentQueue(movie_id=entry.movie_id))
             continue
 
         if found.get("poster_path"):
             movie.poster_path = found["poster_path"]
         if found.get("overview"):
             movie.overview = found["overview"]
-
         enriched += 1
+
+        # Enrichissement réussi : plus besoin de garder ce film en file.
+        db.delete(entry)
 
     db.commit()
 
-    return {"checked": checked, "enriched": enriched, "errors": errors}
+    return {
+        "checked": checked,
+        "enriched": enriched,
+        "errors": errors,
+        "remaining_in_queue": db.query(EnrichmentQueue).count(),
+    }
