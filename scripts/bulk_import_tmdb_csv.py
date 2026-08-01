@@ -64,13 +64,14 @@ def main() -> None:
         for i, chunk in enumerate(
             iter_tmdb_csv_chunks(args.csv_path, chunksize=args.chunksize), start=1
         ):
+            rows_in_chunk = len(chunk)
             summary = _upsert_movies(session, chunk, fill_missing_only=fill_missing_only)
             for key in totals:
                 totals[key] += summary[key]
 
             elapsed = time.time() - start
             print(
-                f"[lot {i}] {len(chunk)} lignes — "
+                f"[lot {i}] {rows_in_chunk} films valides — "
                 f"inserted={summary['inserted']} updated={summary['updated']} "
                 f"unchanged={summary['unchanged']} "
                 f"skipped_duplicates={summary['skipped_duplicates']} "

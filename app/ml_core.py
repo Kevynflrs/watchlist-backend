@@ -3,10 +3,9 @@ import re
 
 import pandas as pd
 
-
-def make_match_key(title: str, year: int | float | None) -> str:
+def make_match_key(title: str | None, year: int | float | None) -> str:
     """Construit une clé unique 'titre_annee' normalisée (minuscule, sans accents ni ponctuation)."""
-    normalized_title = title.strip().lower()
+    normalized_title = (title or "").strip().lower()
     normalized_title = re.sub(
         r"[^a-z0-9\s]", "", normalized_title
     )  # Supprime tout ce qui n'est pas lettre/chiffre/espace (ponctuation, apostrophes, ·, etc.)

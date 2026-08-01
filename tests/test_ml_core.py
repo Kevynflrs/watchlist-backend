@@ -54,3 +54,8 @@ def test_prepare_catalogue_filters_and_computes_year():
     assert list(result["title"]) == ["Movie A"]
     assert result.loc[0, "year"] == 2010
     assert result["year"].dtype == "int64"
+
+
+def test_make_match_key_handles_none_title():
+    assert make_match_key(None, 2010) == "_2010"
+    
