@@ -4,45 +4,56 @@ from sqlalchemy.orm import Session
 
 from app.config import TMDB_IMAGE_BASE
 from app.database import get_db
-from app.models_db import WatchedMovie
+from app.models_db import Movie, WatchedMovie
 from app.routers.train import get_cached_model_bundle
+from app.scoring import refresh_recommendation_scores
 from app.schemas import MovieOut
 from app.scoring import score_catalogue
 
 router = APIRouter(prefix="/recommend", tags=["recommend"])
 
 
+@router.post("/refresh")
+def refresh_scores(db: Session = Depends(get_db)) -> dict:
+    """Recalcule les scores de tout le catalogue sans réentraîner le modèle."""
+    model_bundle = get_cached_model_bundle()
+    if model_bundle is None:
+        raise HTTPException(status_code=409, detail="Aucun modèle entraîné.")
+
+    count = refresh_recommendation_scores(db, model_bundle)
+    return {"scored_movies": count}
+
+
 @router.get("/", response_model=list[MovieOut])
 def recommend(
     categorie: str | None = None, limit: int = 20, db: Session = Depends(get_db)
 ) -> list[MovieOut]:
-    """Retourne les films les mieux notés prédits par le modèle, non-vus, triés par score."""
+    """Retourne les films les mieux notés (scores déjà pré-calculés), non-vus, triés."""
     model_bundle = get_cached_model_bundle()
     if model_bundle is None:
         raise HTTPException(
             status_code=409, detail="Aucun modèle entraîné. Appelle POST /train/ d'abord."
         )
 
-    catalogue_df = pd.read_sql("SELECT * FROM movies", con=db.get_bind())
-    watched_match_keys = {row.match_key for row in db.query(WatchedMovie.match_key).all()}
+    watched_subquery = db.query(WatchedMovie.match_key).subquery()
 
-    scored_df = score_catalogue(catalogue_df, watched_match_keys, model_bundle)
-
+    query = db.query(Movie).filter(
+        Movie.score_prediction.isnot(None),
+        Movie.match_key.notin_(db.query(watched_subquery.c.match_key)),
+    )
     if categorie is not None:
-        scored_df = scored_df[scored_df["categorie_style"] == categorie]
+        query = query.filter(Movie.categorie_style == categorie)
 
-    scored_df = scored_df.sort_values("score_prediction", ascending=False).head(limit)
+    movies = query.order_by(Movie.score_prediction.desc()).limit(limit).all()
 
     return [
         MovieOut(
-            title=row["title"],
-            year=row["year"],
+            title=movie.title,
+            year=movie.year,
             genres=[],
-            overview=row.get("overview"),
-            poster_url=(
-                f"{TMDB_IMAGE_BASE}{row['poster_path']}" if row.get("poster_path") else None
-            ),
-            score_prediction=row["score_prediction"],
+            overview=movie.overview,
+            poster_url=f"{TMDB_IMAGE_BASE}{movie.poster_path}" if movie.poster_path else None,
+            score_prediction=movie.score_prediction,
         )
-        for _, row in scored_df.iterrows()
+        for movie in movies
     ]

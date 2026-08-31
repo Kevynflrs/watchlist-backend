@@ -41,3 +41,27 @@ def score_catalogue(
     unseen_df["categorie_style"] = unseen_df.apply(categorize, axis=1)
 
     return unseen_df
+
+
+def refresh_recommendation_scores(db, model_bundle) -> int:
+    """Recalcule et persiste score_prediction/categorie_style pour tout le catalogue.
+
+    Coûteux (transform + predict_proba sur tout le catalogue).
+    """
+    import pandas as pd
+
+    catalogue_df = pd.read_sql("SELECT * FROM movies", con=db.get_bind())
+    features_df = model_bundle.feature_bundle.transform(catalogue_df)
+    scores = model_bundle.model.predict_proba(features_df)[:, 1]
+
+    catalogue_df["score_prediction"] = scores
+    catalogue_df["categorie_style"] = catalogue_df.apply(categorize, axis=1)
+
+    # Mise à jour en masse via SQLAlchemy Core (bulk update), bien plus rapide que charger chaque objet ORM et faire un setattr un par un sur 100k lignes.
+    from app.models_db import Movie
+
+    updates = catalogue_df[["id", "score_prediction", "categorie_style"]].to_dict("records")
+    db.bulk_update_mappings(Movie, updates)
+    db.commit()
+
+    return len(updates)

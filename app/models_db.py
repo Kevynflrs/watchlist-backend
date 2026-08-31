@@ -22,6 +22,8 @@ class Movie(Base):
     budget = Column(Float, nullable=True)
     popularity = Column(Float, nullable=True)
     status = Column(String, nullable=True)  # ex: "Released", "Post Production"
+    score_prediction = Column(Float, nullable=True, index=True)
+    categorie_style = Column(String, nullable=True, index=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
