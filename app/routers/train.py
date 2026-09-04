@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 from app.config import MODEL_PATH
 from app.database import get_db
 from app.schemas import TrainResult
-from app.train import RATING_THRESHOLD, ModelBundle, train_model
 from app.scoring import refresh_recommendation_scores
+from app.train import RATING_THRESHOLD, ModelBundle, train_model
 
 router = APIRouter(prefix="/train", tags=["train"])
 

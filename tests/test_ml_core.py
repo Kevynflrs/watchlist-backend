@@ -58,4 +58,3 @@ def test_prepare_catalogue_filters_and_computes_year():
 
 def test_make_match_key_handles_none_title():
     assert make_match_key(None, 2010) == "_2010"
-    

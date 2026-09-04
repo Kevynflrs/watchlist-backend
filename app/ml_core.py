@@ -3,6 +3,7 @@ import re
 
 import pandas as pd
 
+
 def make_match_key(title: str | None, year: int | float | None) -> str:
     """Construit une clé unique 'titre_annee' normalisée (minuscule, sans accents ni ponctuation)."""
     normalized_title = (title or "").strip().lower()

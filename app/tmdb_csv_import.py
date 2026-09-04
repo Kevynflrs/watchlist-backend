@@ -49,7 +49,7 @@ def parse_tmdb_csv(file) -> list[dict]:
 def iter_tmdb_csv_chunks(path: str, chunksize: int = 5000):
     """Générateur : lit un gros CSV TMDB par lots de `chunksize` lignes.
 
-    Ne charge jamais l'intégralité du fichier en mémoire, adapté aux exports de plusieurs Go, utilisé par scripts/bulk_import_tmdb_csv.py. 
+    Ne charge jamais l'intégralité du fichier en mémoire, adapté aux exports de plusieurs Go, utilisé par scripts/bulk_import_tmdb_csv.py.
     Les lignes sans titre exploitable (données corrompues/incomplètes) sont ignorées.
     """
     for chunk_df in pd.read_csv(path, chunksize=chunksize):

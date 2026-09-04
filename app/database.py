@@ -16,6 +16,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # Classe de base dont hériteront tous les modèles ORM (Movie, WatchedMovie...).
 Base = declarative_base()
 
+
 def ensure_recommendation_columns(engine) -> None:
     """Ajoute score_prediction/categorie_style à movies si absentes (pas d'Alembic ici)."""
     from sqlalchemy import inspect, text
@@ -28,6 +29,7 @@ def ensure_recommendation_columns(engine) -> None:
             conn.execute(text("ALTER TABLE movies ADD COLUMN score_prediction FLOAT"))
         if "categorie_style" not in existing_columns:
             conn.execute(text("ALTER TABLE movies ADD COLUMN categorie_style VARCHAR"))
+
 
 def get_db() -> Generator[Session, None, None]:
     """Fournit une session DB à une route FastAPI, et la ferme systématiquement après usage."""

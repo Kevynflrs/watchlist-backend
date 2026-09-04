@@ -1,4 +1,3 @@
-import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -7,7 +6,7 @@ from app.database import get_db
 from app.models_db import Movie, WatchedMovie
 from app.routers.train import get_cached_model_bundle
 from app.schemas import MovieOut
-from app.scoring import score_catalogue, refresh_recommendation_scores
+from app.scoring import refresh_recommendation_scores
 
 router = APIRouter(prefix="/recommend", tags=["recommend"])
 
