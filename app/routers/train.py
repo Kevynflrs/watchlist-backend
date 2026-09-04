@@ -6,6 +6,7 @@ from app.config import MODEL_PATH
 from app.database import get_db
 from app.schemas import TrainResult
 from app.train import RATING_THRESHOLD, ModelBundle, train_model
+from app.scoring import refresh_recommendation_scores
 
 router = APIRouter(prefix="/train", tags=["train"])
 
@@ -34,6 +35,9 @@ def train(db: Session = Depends(get_db)) -> TrainResult:
     model_bundle = train_model(catalogue_df, watched_df)
     model_bundle.save(MODEL_PATH)
     _model_bundle_cache = model_bundle
+
+    # Recalcule et persiste les scores pour tout le catalogue, une seule fois ici /recommend/ n'aura ensuite qu'à lire ces valeurs déjà calculées.
+    refresh_recommendation_scores(db, model_bundle)
 
     rated = watched_df.dropna(subset=["rating"])
     n_positive = int((rated["rating"] >= RATING_THRESHOLD).sum())
